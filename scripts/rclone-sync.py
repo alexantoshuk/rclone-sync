@@ -2,16 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import sys
-
 import watchdog
-import os.path
 import logging
 from watchdog.observers import Observer
 import subprocess
-
-
-def dir_empty(dir_path):
-    return not next(os.scandir(dir_path), None)
 
 
 class RClone:
@@ -22,7 +16,7 @@ class RClone:
     def __init__(self, logger=None):
         self.log = logger or logging.root
 
-    def _execute(self, command_with_args):
+    def _execute(self, command_with_args, warning_in_debug=False):
         """
         Execute the given `command_with_args` using Popen
         Args:
@@ -43,7 +37,12 @@ class RClone:
 
                 self.log.debug(out)
                 if err:
-                    self.log.warning(err.decode("utf-8").replace("\\n", "\n"))
+                    if warning_in_debug:
+                        self.log.debug(err.decode(
+                            "utf-8").replace("\\n", "\n"))
+                    else:
+                        self.log.warning(err.decode(
+                            "utf-8").replace("\\n", "\n"))
 
                 return {
                     "code": proc.returncode,
@@ -63,7 +62,7 @@ class RClone:
                 "error": generic_e
             }
 
-    def run_cmd(self, command, extra_args=[]):
+    def run_cmd(self, command, extra_args=[], warning_in_debug=False):
         """
         Execute rclone command
         Args:
@@ -73,11 +72,11 @@ class RClone:
 
         command_with_args = ["rclone", command]
         command_with_args += extra_args
-        command_result = self._execute(command_with_args)
+        command_result = self._execute(command_with_args, warning_in_debug)
 
         return command_result
 
-    def copyto(self, source, dest, flags=[]):
+    def copyto(self, source, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone copyto source:path dest:path [flags]
         Args:
@@ -85,27 +84,27 @@ class RClone:
         - dest (string): A string "dest:path"
         - flags (list): Extra flags as per `rclone copyto --help` flags.
         """
-        return self.run_cmd(command="copyto", extra_args=[source] + [dest] + flags)
+        return self.run_cmd(command="copyto", extra_args=[source] + [dest] + flags, warning_in_debug=warning_in_debug)
 
-    def mkdir(self, dest, flags=[]):
+    def mkdir(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone mkdir dest:path [flags]
         Args:
         - dest (string): A string "dest:path"
         - flags (list): Extra flags as per `rclone mkdir --help` flags.
         """
-        return self.run_cmd(command="mkdir", extra_args=[dest] + flags)
+        return self.run_cmd(command="mkdir", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
-    def rmdir(self, dest, flags=[]):
+    def rmdir(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone rmdir dest:path [flags]
         Args:
         - dest (string): A string "dest:path"
         - flags (list): Extra flags as per `rclone rmdir --help` flags.
         """
-        return self.run_cmd(command="rmdir", extra_args=[dest] + flags)
+        return self.run_cmd(command="rmdir", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
-    def copy(self, source, dest, flags=[]):
+    def copy(self, source, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone copy source:path dest:path [flags]
         Args:
@@ -113,9 +112,9 @@ class RClone:
         - dest (string): A string "dest:path"
         - flags (list): Extra flags as per `rclone copy --help` flags.
         """
-        return self.run_cmd(command="copy", extra_args=[source] + [dest] + flags)
+        return self.run_cmd(command="copy", extra_args=[source] + [dest] + flags, warning_in_debug=warning_in_debug)
 
-    def sync(self, source, dest, flags=[]):
+    def sync(self, source, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone sync source:path dest:path [flags]
         Args:
@@ -123,55 +122,55 @@ class RClone:
         - dest (string): A string "dest:path"
         - flags (list): Extra flags as per `rclone sync --help` flags.
         """
-        return self.run_cmd(command="sync", extra_args=[source] + [dest] + flags)
+        return self.run_cmd(command="sync", extra_args=[source] + [dest] + flags, warning_in_debug=warning_in_debug)
 
-    def listremotes(self, flags=[]):
+    def listremotes(self, flags=[], warning_in_debug=False):
         """
         Executes: rclone listremotes [flags]
         Args:
         - flags (list): Extra flags as per `rclone listremotes --help` flags.
         """
-        return self.run_cmd(command="listremotes", extra_args=flags)
+        return self.run_cmd(command="listremotes", extra_args=flags, warning_in_debug=warning_in_debug)
 
-    def ls(self, dest, flags=[]):
+    def ls(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone ls remote:path [flags]
         Args:
         - dest (string): A string "remote:path" representing the location to list.
         """
-        return self.run_cmd(command="ls", extra_args=[dest] + flags)
+        return self.run_cmd(command="ls", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
-    def lsjson(self, dest, flags=[]):
+    def lsjson(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone lsjson remote:path [flags]
         Args:
         - dest (string): A string "remote:path" representing the location to list.
         """
-        return self.run_cmd(command="lsjson", extra_args=[dest] + flags)
+        return self.run_cmd(command="lsjson", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
-    def delete(self, dest, flags=[]):
+    def delete(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone delete remote:path
         Args:
         - dest (string): A string "remote:path" representing the location to delete.
         """
-        return self.run_cmd(command="delete", extra_args=[dest] + flags)
+        return self.run_cmd(command="delete", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
-    def deletefile(self, dest, flags=[]):
+    def deletefile(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone deletefile remote:path
         Args:
         - dest (string): A string "remote:path" representing the location to delete.
         """
-        return self.run_cmd(command="deletefile", extra_args=[dest] + flags)
+        return self.run_cmd(command="deletefile", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
-    def purge(self, dest, flags=[]):
+    def purge(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone purge remote:path
         Args:
         - dest (string): A string "remote:path" representing the location to delete.
         """
-        return self.run_cmd(command="purge", extra_args=[dest] + flags)
+        return self.run_cmd(command="purge", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
 
 class SyncEventHandler(watchdog.events.FileSystemEventHandler):
@@ -198,7 +197,7 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
             self.logger.info("Moved %s: from %s to %s", what, event.src_path,
                              event.dest_path)
             self.rclone.purge(self._cloud_path(
-                event.src_path), self.rclone_args + ["--retries", "1"])
+                event.src_path), self.rclone_args + ["--retries", "1"], warning_in_debug=True)
 
             self.rclone.mkdir(self._cloud_path(
                 event.dest_path), self.rclone_args)
@@ -209,7 +208,7 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
                          event.dest_path)
 
         self.rclone.deletefile(self._cloud_path(
-            event.src_path), self.rclone_args + ["--retries", "1"])
+            event.src_path), self.rclone_args + ["--retries", "1"], warning_in_debug=True)
         self.rclone.copyto(event.dest_path, self._cloud_path(
             event.dest_path), self.rclone_args)
 
