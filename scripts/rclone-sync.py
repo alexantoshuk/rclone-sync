@@ -41,7 +41,7 @@ class RClone:
                 #out = proc.stdout.read()
                 #err = proc.stderr.read()
 
-                # self.log.debug(out)
+                self.log.debug(out)
                 if err:
                     self.log.warning(err.decode("utf-8").replace("\\n", "\n"))
 
