@@ -198,7 +198,7 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
             self.logger.info("Moved %s: from %s to %s", what, event.src_path,
                              event.dest_path)
             self.rclone.purge(self._cloud_path(
-                event.src_path), self.rclone_args)
+                event.src_path), self.rclone_args + ["--retries", "1"])
 
             self.rclone.mkdir(self._cloud_path(
                 event.dest_path), self.rclone_args)
@@ -209,7 +209,7 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
                          event.dest_path)
 
         self.rclone.deletefile(self._cloud_path(
-            event.src_path), self.rclone_args + ["--retries 0"])
+            event.src_path), self.rclone_args + ["--retries", "1"])
         self.rclone.copyto(event.dest_path, self._cloud_path(
             event.dest_path), self.rclone_args)
 
