@@ -6,6 +6,9 @@ import watchdog
 import logging
 from watchdog.observers import Observer
 import subprocess
+from pathlib import Path
+import json
+import os
 
 
 class RClone:
@@ -32,8 +35,8 @@ class RClone:
                     stderr=subprocess.PIPE) as proc:
                 (out, err) = proc.communicate()
 
-                #out = proc.stdout.read()
-                #err = proc.stderr.read()
+                # out = proc.stdout.read()
+                # err = proc.stderr.read()
 
                 self.log.debug(out)
                 if err:
@@ -140,6 +143,14 @@ class RClone:
         """
         return self.run_cmd(command="ls", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
 
+    def lsd(self, dest, flags=[], warning_in_debug=False):
+        """
+        Executes: rclone lsd remote:path [flags]
+        Args:
+        - dest (string): A string "remote:path" representing the location to list.
+        """
+        return self.run_cmd(command="lsd", extra_args=[dest] + flags, warning_in_debug=warning_in_debug)
+
     def lsjson(self, dest, flags=[], warning_in_debug=False):
         """
         Executes: rclone lsjson remote:path [flags]
@@ -174,10 +185,10 @@ class RClone:
 
 
 class SyncEventHandler(watchdog.events.FileSystemEventHandler):
-    def __init__(self, local_dir, cloud_dir, dry_run=True, logger=None):
+    def __init__(self, local_dir, remote_dir, dry_run=True, logger=None):
         super().__init__()
         self.local_dir = local_dir
-        self.cloud_dir = cloud_dir
+        self.remote_dir = remote_dir
         self.logger = logger or logging.root
         self.rclone = RClone(logger=self.logger)
         self.rclone_args = []
@@ -185,8 +196,8 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
         if dry_run:
             self.rclone_args.append("--dry-run")
 
-    def _cloud_path(self, local_path):
-        return local_path.replace(self.local_dir, self.cloud_dir, 1)
+    def _remote_path(self, local_path):
+        return local_path.replace(self.local_dir, self.remote_dir, 1)
 
     def on_moved(self, event):
         self.logger.info('')
@@ -196,10 +207,10 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
             what = 'directory'
             self.logger.info("Moved %s: from %s to %s", what, event.src_path,
                              event.dest_path)
-            self.rclone.purge(self._cloud_path(
+            self.rclone.purge(self._remote_path(
                 event.src_path), self.rclone_args + ["--retries", "1"], warning_in_debug=True)
 
-            self.rclone.mkdir(self._cloud_path(
+            self.rclone.mkdir(self._remote_path(
                 event.dest_path), self.rclone_args)
             return
 
@@ -207,9 +218,9 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
         self.logger.info("Moved %s: from %s to %s", what, event.src_path,
                          event.dest_path)
 
-        self.rclone.deletefile(self._cloud_path(
+        self.rclone.deletefile(self._remote_path(
             event.src_path), self.rclone_args + ["--retries", "1"], warning_in_debug=True)
-        self.rclone.copyto(event.dest_path, self._cloud_path(
+        self.rclone.copyto(event.dest_path, self._remote_path(
             event.dest_path), self.rclone_args)
 
     def on_created(self, event):
@@ -219,13 +230,13 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
         if event.is_directory:
             what = 'directory'
             self.logger.info("Created %s: %s", what, event.src_path)
-            self.rclone.mkdir(self._cloud_path(
+            self.rclone.mkdir(self._remote_path(
                 event.src_path), self.rclone_args)
             return
 
         what = 'file'
         self.logger.info("Created %s: %s", what, event.src_path)
-        self.rclone.copyto(event.src_path, self._cloud_path(
+        self.rclone.copyto(event.src_path, self._remote_path(
             event.src_path), self.rclone_args)
 
     def on_deleted(self, event):
@@ -235,13 +246,13 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
         if event.is_directory:
             what = 'directory'
             self.logger.info("Deleted %s: %s", what, event.src_path)
-            self.rclone.purge(self._cloud_path(
+            self.rclone.purge(self._remote_path(
                 event.src_path), self.rclone_args)
             return
 
         what = 'file'
         self.logger.info("Deleted %s: %s", what, event.src_path)
-        self.rclone.deletefile(self._cloud_path(
+        self.rclone.deletefile(self._remote_path(
             event.src_path), self.rclone_args)
 
     def on_modified(self, event):
@@ -253,21 +264,63 @@ class SyncEventHandler(watchdog.events.FileSystemEventHandler):
         super().on_modified(event)
         what = 'file'
         self.logger.info("Modified %s: %s", what, event.src_path)
-        self.rclone.copyto(event.src_path, self._cloud_path(
+        self.rclone.copyto(event.src_path, self._remote_path(
             event.src_path), self.rclone_args)
 
 
 def main():
-    local_dir, cloud_dir = sys.argv[1:3]
+    conf_template = """
+    {
+        "local_dir": "/path_to/local_dir_name",
+        "remote_dir": "remote:remote_dir_name",
+        "dry_run": false,
+        "log_level": "INFO"
+    }
+
+    """
+    home = Path.home()
+    conf_path = os.path.join(home, ".rclone-sync.json")
+    local_dir = remote_dir = None
+    log_level = 'INFO'
     dry_run = False
-    if sys.argv[-1] == '--dry-run':
-        dry_run = True
 
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
 
-    event_handler = SyncEventHandler(local_dir, cloud_dir, dry_run=dry_run)
+    if not os.path.isfile(conf_path):
+        msg = "Config '~/.rclone-sync.json' is not exists. Config template:\n" + conf_template
+        logging.error(msg)
+        raise Exception(msg)
+
+    with open(conf_path, 'r') as conf_file:
+        try:
+            conf_dict = json.load(conf_file)
+            local_dir = conf_dict.get('local_dir')
+            remote_dir = conf_dict.get('remote_dir')
+            dry_run = conf_dict.get("dry_run", False)
+            log_level = conf_dict.get("log_level", 'INFO')
+        except:
+            pass
+
+    logging.root.setLevel(log_level)
+
+    if (not local_dir) or (not remote_dir):
+        msg = "Config '~/.rclone-sync.json' has invalid data. Config template:\n" + conf_template
+        logging.error(msg)
+        raise Exception(msg)
+
+    if not os.path.isdir(local_dir):
+        msg = "Local dir '%s' is not exists" % local_dir
+        logging.error(msg)
+        raise Exception(msg)
+
+    event_handler = SyncEventHandler(local_dir, remote_dir, dry_run=dry_run)
+    if event_handler.rclone.lsd(remote_dir).get('code') == 1:
+        msg = "Remote dir '%s' is not exists" % remote_dir
+        logging.error(msg)
+        raise Exception(msg)
+
     observer = Observer()
     observer.schedule(event_handler, local_dir, recursive=True)
     observer.start()
