@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='rclone-sync',
-    version='0.1.0',
+    version='0.1.1',
     scripts=['scripts/rclone-sync.py'],
     license='Apache Software License',
     description='Monitor changes in selected local folder and sync (one-way) to selected cloud storage',

@@ -1,0 +1,13 @@
+
+[Service]
+Type=simple
+User=ali
+ExecStart=/usr/bin/python3 home/ali/.local/bin/rclone-sync.py
+Restart=always
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=rclone-sync
+
+[Install]
+WantedBy=multi-user.target
